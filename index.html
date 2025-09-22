@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>solus.pages</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light only" />
+  <meta name="format-detection" content="telephone=no,email=no,address=no" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#fff; --fg:#000; --font:"IBM Plex Mono", monospace;
+      --size:clamp(14px,1.6vw,18px); --line:1.6;
+      --muted:#999; --muted-strong:#000; --ui:#f5f5f5; --ui-border:#ddd;
+    }
+    html, body { height:100%; margin:0; background:var(--bg); color:var(--fg); }
+    body { font-family:var(--font); font-size:var(--size); line-height:var(--line); }
+    * { box-sizing:border-box; }
+
+    #page {
+      min-height:100%;
+      margin:0;
+      outline:none;
+      white-space:pre-wrap;
+      word-wrap:break-word;
+      caret-color:var(--fg);
+      -webkit-user-modify:read-write-plaintext-only;
+      padding-top:20vh;
+      padding-left:10vw;
+      padding-right:10vw;
+    }
+    #page:empty::before {
+      content:attr(placeholder);
+      color:#ccc;
+      pointer-events:none;
+      display:inline;
+    }
+    ::selection { background:rgba(0,0,0,0.12); }
+    ::-webkit-scrollbar { width:0; height:0; }
+
+    .toolbar {
+      position:fixed; top:10px; right:10px; display:flex; gap:8px; align-items:center; z-index:20;
+    }
+    .btn {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:32px; height:32px; border:none; background:transparent;
+      color:var(--muted); cursor:pointer; padding:0; opacity:.5; transition:.15s; position:relative; border-radius:6px;
+    }
+    .btn:hover { opacity:1; color:var(--muted-strong); }
+    .btn svg { width:18px; height:18px; display:block; }
+    .btn:hover::after {
+      content:attr(title);
+      position:absolute; bottom:-28px; right:50%; transform:translateX(50%);
+      background:#111; color:#fff; font-size:11px; padding:3px 6px; border-radius:4px; white-space:nowrap; opacity:.9; pointer-events:none;
+    }
+
+    .toast {
+      position:fixed; bottom:16px; right:16px; background:#111; color:#fff; font-size:12px;
+      padding:8px 10px; border-radius:8px; opacity:0; transform:translateY(6px); transition:.15s; pointer-events:none; z-index:40;
+    }
+    .toast.show { opacity:1; transform:translateY(0); }
+
+    .titlebar {
+      position:fixed; top:10px; left:10px; z-index:30; display:flex; align-items:center; gap:8px;
+    }
+    .title-dropdown {
+      display:flex; align-items:center; gap:8px;
+      border:1px solid var(--ui-border); border-radius:10px; padding:6px 10px; background:#fafafa; cursor:pointer;
+    }
+    .logo {
+      width:14px; height:14px; border-radius:3px; background:#bfbfbf;
+    }
+    .title-text {
+      font-family:var(--font); font-size:14px; color:#000;
+      padding:0; margin:0; flex:1;
+    }
+    .dropdown-menu {
+      position:absolute; top:42px; left:0; background:#fff; border:1px solid var(--ui-border); border-radius:8px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+      min-width:240px; display:none; flex-direction:column; z-index:50; overflow:hidden;
+    }
+    .dropdown-menu.open { display:flex; }
+    .menu-header {
+      padding:8px 10px; border-bottom:1px solid var(--ui-border); display:flex; align-items:center; justify-content:space-between; gap:8px;
+    }
+    .menu-title { font-size:12px; color:#666; letter-spacing:.02em; }
+    .menu-new {
+      border:none; background:#f0f0f0; font-size:12px; padding:6px 8px; border-radius:6px; cursor:pointer; color:#333;
+    }
+    .menu-new:hover { background:#e6e6e6; }
+    .menu-list { max-height:40vh; overflow:auto; display:flex; flex-direction:column; }
+    .menu-item {
+      display:grid; grid-template-columns:1fr auto; gap:6px; align-items:center; padding:8px 10px; cursor:pointer;
+    }
+    .menu-item:hover { background:#f7f7f7; }
+    .menu-item.active { background:#efefef; }
+    .menu-name {
+      font-size:13px; color:#111; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .menu-actions { display:inline-flex; gap:6px; }
+    .iconbtn {
+      width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center;
+      border:none; background:transparent; color:#888; border-radius:6px; cursor:pointer;
+    }
+    .iconbtn:hover { color:#000; background:rgba(0,0,0,0.04); }
+
+    @media (max-width:640px) {
+      #page { padding-left:6vw; padding-right:6vw; padding-top:18vh; }
+      .dropdown-menu { min-width:70vw; }
+    }
+  </style>
+</head>
+<body>
+  <div class="titlebar">
+    <div id="title-dropdown" class="title-dropdown" aria-haspopup="true" aria-expanded="false">
+      <div class="logo"></div>
+      <div id="doc-title" class="title-text">Untitled</div>
+    </div>
+    <div id="dropdown-menu" class="dropdown-menu" role="menu">
+      <div class="menu-header">
+        <div class="menu-title">Pages</div>
+        <button id="new-page" class="menu-new">New Page</button>
+      </div>
+      <div id="page-list" class="menu-list"></div>
+    </div>
+    <button id="btn-save" class="menu-new">Save</button>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn" id="btn-copy" title="Copy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+    </button>
+    <button class="btn" id="btn-share" title="Share">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="18" cy="5" r="3"></circle>
+        <circle cx="6" cy="12" r="3"></circle>
+        <circle cx="18" cy="19" r="3"></circle>
+        <path d="M8.7 13.4l6.6 3.2M15.3 7.4L8.7 10.6"></path>
+      </svg>
+    </button>
+    <button class="btn" id="btn-full" title="Full Screen">
+      <svg id="icon-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path>
+      </svg>
+    </button>
+  </div>
+
+  <div id="page" placeholder="Start typing..." contenteditable="plaintext-only" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (function(){
+      const pageEl = document.getElementById("page");
+      const toast = document.getElementById("toast");
+      const btnCopy = document.getElementById("btn-copy");
+      const btnShare = document.getElementById("btn-share");
+      const btnFull = document.getElementById("btn-full");
+      const iconFull = document.getElementById("icon-full");
+      const titleDropdown = document.getElementById("title-dropdown");
+      const dropdownMenu = document.getElementById("dropdown-menu");
+      const newPageBtn = document.getElementById("new-page");
+      const pageList = document.getElementById("page-list");
+      const docTitle = document.getElementById("doc-title");
+      const btnSave = document.getElementById("btn-save");
+
+      const KEY_META = "solus.pages.meta";
+      const KEY_CURRENT = "solus.pages.current";
+      const KEY_PREFIX = "solus.pages.content.";
+      const KEY_TITLE_PREFIX = "solus.pages.title.";
+
+      try { pageEl.contentEditable = "plaintext-only"; }
+      catch(_) { pageEl.setAttribute("contenteditable","true"); }
+
+      function notify(msg){
+        toast.textContent = msg;
+        toast.classList.add("show");
+        clearTimeout(notify._t);
+        notify._t = setTimeout(()=>toast.classList.remove("show"), 1200);
+      }
+
+      function loadMeta(){ return JSON.parse(localStorage.getItem(KEY_META) || "[]"); }
+      function saveMeta(m){ localStorage.setItem(KEY_META, JSON.stringify(m)); }
+      function getCurrentId(){ return localStorage.getItem(KEY_CURRENT); }
+      function setCurrentId(id){ localStorage.setItem(KEY_CURRENT, id); }
+      function loadContent(id){ return localStorage.getItem(KEY_PREFIX + id) || ""; }
+      function saveContent(id, text){ localStorage.setItem(KEY_PREFIX + id, text || ""); }
+      function loadTitle(id){ return localStorage.getItem(KEY_TITLE_PREFIX + id) || "Untitled"; }
+      function saveTitle(id, t){ localStorage.setItem(KEY_TITLE_PREFIX + id, (t || "Untitled")); }
+      function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+
+      function renderList(){
+        pageList.innerHTML = "";
+        const meta = loadMeta();
+        const cur = getCurrentId();
+        meta.forEach(p=>{
+          const row = document.createElement("div");
+          row.className = "menu-item" + (p.id===cur ? " active" : "");
+          row.dataset.id = p.id;
+
+          const name = document.createElement("div");
+          name.className = "menu-name";
+          name.textContent = loadTitle(p.id);
+
+          const actions = document.createElement("div");
+          actions.className = "menu-actions";
+
+          const btnRename = document.createElement("button");
+          btnRename.className = "iconbtn";
+          btnRename.title = "Rename";
+          btnRename.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h6"></path><path d="M7.5 20.5l-4-4L16 4.1a2.5 2.5 0 0 1 3.5 3.5L7.5 20.5z"></path></svg>';
+          btnRename.addEventListener("click", (e)=>{
+            e.stopPropagation();
+            startRename(row, p.id);
+          });
+
+          const btnDelete = document.createElement("button");
+          btnDelete.className = "iconbtn";
+          btnDelete.title = "Delete";
+          btnDelete.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><rect x="6" y="6" width="12" height="14" rx="2"></rect><path d="M10 11v6M14 11v6"></path></svg>';
+          btnDelete.addEventListener("click", (e)=>{
+            e.stopPropagation();
+            deletePage(p.id);
+          });
+
+          actions.appendChild(btnRename);
+          actions.appendChild(btnDelete);
+
+          row.appendChild(name);
+          row.appendChild(actions);
+
+          row.addEventListener("click", ()=>{
+            if (getCurrentId() !== p.id) {
+              commitCurrent();
+              setCurrentId(p.id);
+              loadCurrent();
+              closeDropdown();
+            }
+          });
+
+          pageList.appendChild(row);
+        });
+      }
+
+      function startRename(row, id){
+        const nameEl = row.querySelector(".menu-name");
+        const old = nameEl.textContent;
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = old;
+        input.style.width = "100%";
+        input.style.font = "inherit";
+        input.style.fontSize = "13px";
+        input.style.border = "1px solid var(--ui-border)";
+        input.style.borderRadius = "6px";
+        input.style.padding = "4px 6px";
+        row.replaceChild(input, nameEl);
+        input.focus(); input.select();
+        const finish = (ok)=>{
+          const v = ok ? (input.value.trim() || old) : old;
+          saveTitle(id, v);
+          renderList();
+          if (getCurrentId() === id) docTitle.textContent = v;
+        };
+        input.addEventListener("keydown", (e)=>{
+          if (e.key === "Enter") finish(true);
+          else if (e.key === "Escape") finish(false);
+        });
+        input.addEventListener("blur", ()=>finish(true));
+      }
+
+      function deletePage(id){
+        const meta = loadMeta();
+        if (meta.length <= 1) { notify("At least one page is required"); return; }
+        const nextMeta = meta.filter(p=>p.id!==id);
+        localStorage.removeItem(KEY_PREFIX + id);
+        localStorage.removeItem(KEY_TITLE_PREFIX + id);
+        saveMeta(nextMeta);
+        if (getCurrentId() === id) {
+          setCurrentId(nextMeta[0].id);
+          loadCurrent();
+        }
+        renderList();
+      }
+
+      function commitCurrent(){
+        const id = getCurrentId();
+        if (!id) return;
+        saveContent(id, pageEl.textContent || "");
+        saveTitle(id, docTitle.textContent);
+      }
+
+      function loadCurrent(){
+        const id = getCurrentId();
+        if (!id) return;
+        pageEl.textContent = loadContent(id);
+        docTitle.textContent = loadTitle(id);
+        placeCaretEnd();
+        pageEl.focus();
+      }
+
+      function newPage(){
+        commitCurrent();
+        const id = uid();
+        const meta = loadMeta();
+        meta.unshift({ id, created: Date.now() });
+        saveMeta(meta);
+        setCurrentId(id);
+        saveContent(id, "");
+        saveTitle(id, "Untitled");
+        loadCurrent();
+        renderList();
+        notify("New page");
+      }
+
+      function placeCaretEnd(){
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(pageEl);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
+      pageEl.addEventListener("paste", (e)=>{
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData("text");
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        sel.deleteFromDocument();
+        sel.getRangeAt(0).insertNode(document.createTextNode(text));
+        sel.collapseToEnd();
+        commitCurrent();
+      });
+
+      pageEl.addEventListener("drop", (e)=>{
+        e.preventDefault();
+        const text = e.dataTransfer.getData("text/plain");
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        sel.deleteFromDocument();
+        sel.getRangeAt(0).insertNode(document.createTextNode(text));
+        sel.collapseToEnd();
+        commitCurrent();
+      });
+
+      pageEl.addEventListener("input", ()=>{
+        // autosave could be added; manual save is primary per request
+      });
+
+      btnSave.addEventListener("click", ()=>{
+        commitCurrent();
+        notify("Saved");
+      });
+
+      document.addEventListener("keydown", (e)=>{
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "n") {
+          e.preventDefault();
+          newPage();
+        }
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "s") {
+          e.preventDefault();
+          commitCurrent();
+          notify("Saved");
+        }
+      });
+
+      btnCopy.addEventListener("click", async ()=>{
+        try { await navigator.clipboard.writeText(pageEl.textContent || ""); notify("Copied"); } catch {}
+      });
+
+      btnShare.addEventListener("click", async ()=>{
+        const text = pageEl.textContent || "";
+        if (navigator.share) {
+          try { await navigator.share({ title: docTitle.textContent || "Untitled", text }); notify("Shared"); return; } catch {}
+        }
+        try { await navigator.clipboard.writeText(text); notify("Copied"); } catch {}
+      });
+
+      btnFull.addEventListener("click", async ()=>{
+        if (!document.fullscreenElement) {
+          try { await document.documentElement.requestFullscreen({ navigationUI:"hide" }); } catch {}
+        } else {
+          try { await document.exitFullscreen(); } catch {}
+        }
+      });
+
+      document.addEventListener("fullscreenchange", ()=>{
+        if (document.fullscreenElement) {
+          iconFull.innerHTML = '<path d="M9 9H4V4M15 9h5V4M9 15H4v5M15 15h5v5"></path>';
+        } else {
+          iconFull.innerHTML = '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path>';
+        }
+      });
+
+      function openDropdown(){
+        dropdownMenu.classList.add("open");
+        titleDropdown.setAttribute("aria-expanded","true");
+        renderList();
+      }
+      function closeDropdown(){
+        dropdownMenu.classList.remove("open");
+        titleDropdown.setAttribute("aria-expanded","false");
+      }
+
+      titleDropdown.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        if (dropdownMenu.classList.contains("open")) closeDropdown(); else openDropdown();
+      });
+
+      document.addEventListener("click", (e)=>{
+        if (!dropdownMenu.contains(e.target) && e.target !== titleDropdown && !titleDropdown.contains(e.target)) {
+          closeDropdown();
+        }
+      });
+
+      document.addEventListener("keydown", (e)=>{
+        if (e.key === "Escape") closeDropdown();
+      });
+
+      newPageBtn.addEventListener("click", newPage);
+
+      window.addEventListener("beforeunload", commitCurrent);
+      document.addEventListener("visibilitychange", ()=>{ if (document.hidden) commitCurrent(); });
+
+      let meta = loadMeta();
+      if (meta.length === 0) {
+        const id = uid();
+        meta = [{ id, created: Date.now() }];
+        saveMeta(meta);
+        setCurrentId(id);
+        saveContent(id, "");
+        saveTitle(id, "Untitled");
+      } else if (!getCurrentId() || !meta.find(m=>m.id===getCurrentId())) {
+        setCurrentId(meta[0].id);
+      }
+      loadCurrent();
+      renderList();
+      window.addEventListener("load", ()=>{ pageEl.focus(); placeCaretEnd(); });
+    })();
+  </script>
+</body>
+</html>
+```
